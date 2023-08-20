@@ -1,0 +1,119 @@
+
+JPA is internally using hibernet as an ORM.
+Following in general config to connect mysql db with the app.
+spring.jpa.hibernate.ddl-auto=update -> update should not be used in prod until it's really required
+spring.datasource.url=jdbc:mysql://localhost:3306/schooldb
+spring.datasource.username=root
+spring.datasource.password=passw0rd
+spring.datasource.driver-class-name =com.mysql.jdbc.Driver
+spring.jpa.show-sql: true
+
+@Entity class name will be mapped to a table(@Table is not given), column name would be mapped from attributes,
+camleCase would be converted to underscore-> studentId(in class) -> student_id(in db)
+
+If @Table(name = "tbl_student") is given then tbl_student table would be created in db.
+To change default column name in db use @Column(name = "email_address")
+If we want id(primary key) to be sequentially generated then:
+    @Id
+    @SequenceGenerator(
+            name = "student_sequence",
+            sequenceName = "student_sequence",
+            allocationSize = 1
+    )
+    @GeneratedValue(
+            strategy = GenerationType.SEQUENCE,
+            generator = "student_sequence"
+    )
+    private Long studentId;
+
+Adding constraints like unique key:
+@Column(
+    name = "eamil_add",
+    nullable = false
+)
+
+
+Repository and their methods: There are some default implementation for CRUD operations:
+Create an interface with the entity class name and extends JPARepository<entity-class, primary-key-type>
+findById, findAll, save, saveAll, delete, deleteById, deleteAll, count,  are some of the method available that can be directly called for
+preforming crud operations.
+
+If I don't want to create a new table(entity) for a class like:
+student is having guardian, I can use @Embeddable and @Embedded.
+@AttributeOverrides can be used in the Embeddable class if we want to change the field names
+in the db.
+
+Write custom queries:
+find student by first name: method name should follow camelcase on the field that needs to be searched, like
+field name:-> firstName then method name would be findByFirstName(String firstName); only method definition is required,
+no need to implement it.
+If we want to search for a string containing then use method: public List<Student> findByFirstNameContaining(String name);
+More queries can be created using the doc: https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#repositories.query-methods
+
+When we need specific query that is not available via methods then we can write our own using @Query() JPQL queries are based on class and
+attributes names rather than the actual tables and columns in db.
+@Query("select s from Student s where s.emailId = ?1") -> ?1 is first parameter
+    Student getStudentByEmailAddress(String emailId);
+
+We can also write native sql queries using @Query and providing nativeQuery = true
+//SQL Native Query
+    @Query(
+            value = "SELECT * FROM tbl_student s where s.email_address = ?1;",
+            nativeQuery = true
+    )
+    List<Student> getStudentByEmailAddressNative(String emailId);
+
+@Modifiying is used for updated queries: if modifying is used it means it is transaction and @Transactional should also be
+used for ACID. Ideally we need to specify service layer method as Transactional that means a transaction should complete and
+commit every steps otherwise rollback all steps.
+
+@OneToOne (
+            cascade = CascadeType.ALL, : to pass the permission to child like create child if not created.
+            fetch = FetchType.LAZY, : if we don't need to fetch the parent data then use FetchType.LAZY((might need to exclude from toString as well))
+            else use fetch FetchType.EAGER to retrieve parent data as well.
+            optional = false :
+    )
+    @JoinColumn(
+            name = "course_id", :
+            referencedColumnName = "courseId" :
+    )
+    private Course course
+
+Uni and Bidirectional OneToOne Mapping:
+define @OneToOne in both classes but in one of the class use mappedBy
+@OneToOne(
+            mappedBy = "course",
+            optional = false
+    )
+    private CourseMaterial courseMaterial;
+
+    when we set optional = false then this field will always be required or must be created before the insertion of current table data,
+    ensuring foreign key constraints.
+
+JPA guidance: Always try to go for ManyToOne relationship whenever possible in place of OneToMany
+
+Pagination is often helpful when we have a large dataset and we want to present it to the user in smaller chunks.
+Also, we often need to sort that data by some criteria while paging.
+We can define the number of pages and page size and apply sorting on those pages.
+Ex: We are having 1000 rows, we want only 100 rows, 2 pages, one page size = 50 sort by firstName.
+
+
+ManyToMany: multiple students can opt for multiple courses, so for this we need a separate table that should hold the
+ids of both students and courses.@JoinTable is used for it.
+ @ManyToMany(
+            cascade = CascadeType.ALL
+    )
+    @JoinTable (
+            name = "student_course_map",
+            joinColumns = @JoinColumn(
+                    name = "course_id",
+                    referencedColumnName = "courseId"
+            ),
+            inverseJoinColumns = @JoinColumn(
+                    name = "student_id",
+                    referencedColumnName = "studentId"
+            )
+
+    )
+    private List<Student> students;
+
